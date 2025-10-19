@@ -296,9 +296,9 @@ class ReadCSI(object):
         csi_amp_denoised = np.zeros_like(csi_amp_filtered)
         for s in range(csi_amp_filtered.shape[1]):
             csi_amp_denoised[:, s] = dwt_denoise(csi_amp_filtered[:, s])
-        if save_image:
+        # if save_image:
             # 使用去噪后的幅度（数据已预裁剪）
-            self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet')
+        self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet')
         
         self.csi = csi_amp_denoised
         return self.csi
@@ -389,4 +389,4 @@ class ReadCSI(object):
         time.sleep(0.1)  # 确保文件名唯一
         now_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         plt.savefig(f'image/csi_overview_{now_time}.png', dpi=300)
-        # plt.show()
+        plt.show()
