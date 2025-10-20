@@ -28,6 +28,7 @@ import os
 import time
 import numpy as np
 import sys
+import scipy.signal  # 添加导入用于FFT和峰值检测
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -36,6 +37,8 @@ from nexcsi import nulls, pilots
 from matplotlib import colors
 from scipy.stats import median_abs_deviation
 import pywt
+
+from utils import BreathingAnalyzer, HeartbeatAnalyzer
 
 
 # 设置matplotlib中文字体（适配Windows常见字体）
@@ -242,14 +245,6 @@ def dwt_denoise(signal, wavelet='db4', level=2, threshold_type='soft'):
     denoised = pywt.waverec(coeffs_thresh, wavelet)
     return denoised[:len(signal)]  # 避免边界延拓导致长度变化
 
-def enhance_amplitude_changes(amp):
-    """
-    放大振幅差值较大的变化，缩小较小的变化。
-    通过对差分应用平方函数实现非线性增强。
-    """
-    diff = np.diff(amp, axis=0)
-    enhanced = np.sign(diff) * (np.abs(diff) ** 2)
-    return enhanced
 
 class ReadCSI(object):
 
@@ -260,14 +255,21 @@ class ReadCSI(object):
         self.amplitude_spec = amplitude_spec
         self.subcarrier_spec = subcarrier_spec
         self.bandwidth = bandwidth
+        self.samples = None
 
-    def read(self, save_image=False):
+    def read(self, save_image=False, save_path=None):
 
         pcap_path = self.filepath
         # 默认带宽为80MHz
         samples = read_pcap(pcap_path, bandwidth=self.bandwidth)
         print("样本数:", len(samples))
-
+        
+        # 计算并打印采样率
+        timestamps = samples['ts_sec'] + samples['ts_usec'] / 1e6
+        sampling_rate = 1 / np.mean(np.diff(timestamps))
+        print(f"采样率: {sampling_rate:.2f} Hz")
+        
+        self.samples = samples
         # unpack所有样本的CSI
         csi_raw = samples['csi']
         # 解包得到 complex64 格式的 CSI 矩阵 (n_samples, n_subcarriers)
@@ -280,17 +282,17 @@ class ReadCSI(object):
         end = self.subcarrier_spec[1] if self.subcarrier_spec[1] is not None else csi_arr.shape[1]
         csi_arr = csi_arr[:, start:end]
 
-        if save_image:
-            # 读取数据后立即展示 CSI 概览图（热图 + 单子载波折线）
-            self.plot_csi_overview(csi_arr, subcarrier=15, cmap='jet')
+        # if save_image:
+        #     # 读取数据后立即展示 CSI 概览图（热图 + 单子载波折线）
+        #     self.plot_csi_overview(csi_arr, subcarrier=15, cmap='jet')
 
         # 计算幅度并应用Hampel滤波去除异常值
         csi_amp = np.abs(csi_arr)
         csi_amp_filtered, outliers = hampel_filter_for_csi(csi_amp)
         print(f"检测到异常值数量: {np.sum(outliers)}")
-        if save_image:
-            # 使用Hampel滤波后的幅度
-            self.plot_csi_overview(csi_amp_filtered, subcarrier=15, cmap='jet')
+        # if save_image:
+        #     # 使用Hampel滤波后的幅度
+        #     self.plot_csi_overview(csi_amp_filtered, subcarrier=15, cmap='jet')
 
         # 在异常值处理后应用小波去噪
         csi_amp_denoised = np.zeros_like(csi_amp_filtered)
@@ -298,7 +300,7 @@ class ReadCSI(object):
             csi_amp_denoised[:, s] = dwt_denoise(csi_amp_filtered[:, s])
         # if save_image:
             # 使用去噪后的幅度（数据已预裁剪）
-        self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet')
+        self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet',save_path=save_path)
         
         self.csi = csi_amp_denoised
         return self.csi
@@ -307,7 +309,7 @@ class ReadCSI(object):
         np.save(save_path, self.csi)
         print(f"CSI数据已保存到 {save_path}")
 
-    def plot_csi_overview(self, csi, subcarrier=None, cmap='jet', figsize=(14, 5)):
+    def plot_csi_overview(self, csi, subcarrier=None, cmap='jet', figsize=(14, 5), save_path=None):
         """
         绘制 CSI 概览，样式按示例：
         - 上：CSI 幅度热力图（y=子载波，x=包序号，右侧颜色条），子载波从上到下（origin='upper'）
@@ -335,9 +337,9 @@ class ReadCSI(object):
             else:
                 sub_idx = original_sub
 
-        # 布局：上宽图，中窄图，下方差图
+        # 布局：只保留热力图
         fig = plt.figure(figsize=figsize)
-        gs = fig.add_gridspec(3, 2, height_ratios=[4, 1, 1], width_ratios=[1, 0.03], hspace=0.25)
+        gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.03])
         ax_heat = fig.add_subplot(gs[0, 0])
         cax = fig.add_subplot(gs[0, 1])
 
@@ -356,37 +358,24 @@ class ReadCSI(object):
             pass
         im.set_clim(vmin, vmax)
 
-        ax_line = fig.add_subplot(gs[1, 0])
-        ax_line.plot(np.arange(n_samples), amp[:, sub_idx], lw=0.9, color='C0')
-        ax_line.set_xlabel('packet number')
-        ax_line.set_ylabel('幅度')
-        # 标题显示裁剪后子载波索引
-        ax_line.set_title(f'subcarrier {sub_idx}')
-        ax_line.set_ylim(vmin, vmax)
-        ax_line.grid(True)
-
-        # 新增：各子载波强度方差的线图
-        enhanced_changes = enhance_amplitude_changes(amp)
-        mean_enhanced = np.mean(enhanced_changes, axis=1)
-        # 简单裁剪异常值（使用分位数裁剪），然后归一化到 0~1
-        p_low, p_high = np.percentile(mean_enhanced, [1.0, 99.0])
-        if p_high > p_low:
-            clipped = np.clip(mean_enhanced, p_low, p_high)
-            normalized = (clipped - p_low) / (p_high - p_low)
-        else:
-            normalized = np.zeros_like(mean_enhanced)
-        ax_var = fig.add_subplot(gs[2, 0])
-        ax_var.plot(np.arange(len(normalized)), normalized, lw=0.9, color='C1')
-        ax_var.set_xlabel('packet number')
-        ax_var.set_ylabel('归一化增强变化平均')
-        ax_var.set_title('归一化整合振幅变化增强平均')
-        ax_var.set_ylim(0, 1)
-        ax_var.grid(True)
-
-
         plt.tight_layout()
         # 保存
-        time.sleep(0.1)  # 确保文件名唯一
-        now_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        plt.savefig(f'image/csi_overview_{now_time}.png', dpi=300)
+        plt.savefig(save_path, dpi=300)
         plt.show()
+
+    def get_breathing_analyzer(self):
+        """
+        返回BreathingAnalyzer实例，用于呼吸分析。
+        """
+        if self.csi is None or self.samples is None:
+            raise ValueError("请先调用read()方法读取和处理CSI数据。")
+        return BreathingAnalyzer(self.csi, self.samples)
+
+    def get_heartbeat_analyzer(self):
+        """
+        返回HeartbeatAnalyzer实例，用于心跳分析。
+        """
+        if self.csi is None or self.samples is None:
+            raise ValueError("请先调用read()方法读取和处理CSI数据。")
+        return HeartbeatAnalyzer(self.csi, self.samples)
+
