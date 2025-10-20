@@ -255,19 +255,20 @@ class HeartbeatAnalyzer(object):
         heartbeat_rate = heartbeat_freq * 60
         return heartbeat_rate
 
-    def extract_heartbeat_rate_by_voting(self, heartbeat_freq_range=(0.75, 3.0), vote_threshold=0.5, verbose=True):
+    def extract_heartbeat_rate_by_voting(self, heartbeat_freq_range=(0.75, 3.0), vote_threshold=0.5, outlier_threshold=30, verbose=True):
         """
         对每个子载波分别提取心跳频率，通过投票选举最可靠的频率。
         
         参数:
         - heartbeat_freq_range: 心跳频率范围（Hz），默认0.75-3.0 Hz (45-180 bpm)
         - vote_threshold: 投票阈值（bpm），频率在此范围内视为同一票
+        - outlier_threshold: 异常值阈值（bpm），与平均值差距超过此值的将被去除
         - verbose: 是否打印详细信息和绘制图表（默认 True）
         
         返回:
         - voting_rate: 投票得出的心跳率（次/分钟）
         - vote_counts: 各频率的投票数
-        - all_rates: 所有子载波的心跳率列表
+        - all_rates: 所有子载波的心跳率列表（去除异常值后）
         """
         timestamps = self.samples['ts_sec'] + self.samples['ts_usec'] / 1e6
         sampling_rate = 1 / np.mean(np.diff(timestamps))
@@ -312,6 +313,15 @@ class HeartbeatAnalyzer(object):
         if not all_rates:
             return 0, {}, []
         
+        # 去除异常值
+        mean_rate = np.mean(all_rates)
+        original_count = len(all_rates)
+        all_rates = [rate for rate in all_rates if abs(rate - mean_rate) <= outlier_threshold]
+        removed_count = original_count - len(all_rates)
+        
+        if not all_rates:
+            return 0, {}, []
+        
         # 投票机制：将相近频率聚类
         all_rates = np.array(all_rates)
         sorted_rates = np.sort(all_rates)
@@ -337,6 +347,7 @@ class HeartbeatAnalyzer(object):
         
         if verbose:
             print(f"心跳率提取统计:")
+            print(f"  去除异常值数量: {removed_count}")
             print(f"  子载波数: {len(all_rates)}")
             print(f"  所有子载波心跳率范围: {np.min(all_rates):.1f} - {np.max(all_rates):.1f} bpm")
             print(f"  投票结果: {voting_rate:.1f} bpm (投票数: {max(vote_counts.keys())})")

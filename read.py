@@ -279,9 +279,9 @@ class ReadCSI(object):
         csi_arr = np.asarray(csi_unpacked).astype(np.complex64)
 
         # 读取数据后立即应用子载波范围裁剪
-        start = self.subcarrier_spec[0] if self.subcarrier_spec[0] is not None else 0
-        end = self.subcarrier_spec[1] if self.subcarrier_spec[1] is not None else csi_arr.shape[1]
-        csi_arr = csi_arr[:, start:end]
+        # start = self.subcarrier_spec[0] if self.subcarrier_spec[0] is not None else 0
+        # end = self.subcarrier_spec[1] if self.subcarrier_spec[1] is not None else csi_arr.shape[1]
+        # csi_arr = csi_arr[:, start:end]
 
         # if save_image:
         #     # 读取数据后立即展示 CSI 概览图（热图 + 单子载波折线）
