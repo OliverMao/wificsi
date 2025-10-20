@@ -4,3 +4,5 @@ numpy
 scipy
 matplotlib
 tqdm
+pywavelets
+scikit-learn

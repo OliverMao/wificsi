@@ -78,13 +78,14 @@ class BreathingAnalyzer(object):
         breathing_rate = breathing_freq * 60
         return breathing_rate
 
-    def extract_breathing_rate_by_voting(self, breathing_freq_range=(0.1, 0.5), vote_threshold=0.05):
+    def extract_breathing_rate_by_voting(self, breathing_freq_range=(0.1, 0.5), vote_threshold=0.05, verbose=True):
         """
         对每个子载波分别提取呼吸频率，通过投票选举最可靠的频率。
         
         参数:
         - breathing_freq_range: 呼吸频率范围（Hz），默认0.1-0.5 Hz
         - vote_threshold: 投票阈值（Hz），频率在此范围内视为同一票
+        - verbose: 是否打印详细信息和绘制图表（默认 True）
         
         返回:
         - voting_rate: 投票得出的呼吸率（次/分钟）
@@ -157,22 +158,23 @@ class BreathingAnalyzer(object):
         else:
             voting_rate = np.median(all_rates)
         
-        print(f"呼吸率提取统计:")
-        print(f"  子载波数: {len(all_rates)}")
-        print(f"  所有子载波呼吸率范围: {np.min(all_rates):.1f} - {np.max(all_rates):.1f} bpm")
-        print(f"  投票结果: {voting_rate:.1f} bpm (投票数: {max(vote_counts.keys())})")
-        print(f"  中位数: {np.median(all_rates):.1f} bpm")
-        print(f"  平均值: {np.mean(all_rates):.1f} bpm")
-        
-        # 绘制分布图
-        plt.figure(figsize=(8, 6))
-        plt.hist(all_rates, bins=20, alpha=0.7, color='blue', edgecolor='black')
-        plt.xlabel('Breathing Rate (bpm)')
-        plt.ylabel('Frequency')
-        plt.title('Distribution of Breathing Rates Across Subcarriers')
-        plt.grid(True)
-        plt.savefig('breathing_distribution.png', dpi=300)
-        plt.show()
+        if verbose:
+            print(f"呼吸率提取统计:")
+            print(f"  子载波数: {len(all_rates)}")
+            print(f"  所有子载波呼吸率范围: {np.min(all_rates):.1f} - {np.max(all_rates):.1f} bpm")
+            print(f"  投票结果: {voting_rate:.1f} bpm (投票数: {max(vote_counts.keys())})")
+            print(f"  中位数: {np.median(all_rates):.1f} bpm")
+            print(f"  平均值: {np.mean(all_rates):.1f} bpm")
+            
+            # 绘制分布图
+            plt.figure(figsize=(8, 6))
+            plt.hist(all_rates, bins=20, alpha=0.7, color='blue', edgecolor='black')
+            plt.xlabel('Breathing Rate (bpm)')
+            plt.ylabel('Frequency')
+            plt.title('Distribution of Breathing Rates Across Subcarriers')
+            plt.grid(True)
+            plt.savefig('breathing_distribution.png', dpi=300)
+            plt.show()
         
         return voting_rate, vote_counts, all_rates
 
@@ -253,13 +255,14 @@ class HeartbeatAnalyzer(object):
         heartbeat_rate = heartbeat_freq * 60
         return heartbeat_rate
 
-    def extract_heartbeat_rate_by_voting(self, heartbeat_freq_range=(0.75, 3.0), vote_threshold=0.5):
+    def extract_heartbeat_rate_by_voting(self, heartbeat_freq_range=(0.75, 3.0), vote_threshold=0.5, verbose=True):
         """
         对每个子载波分别提取心跳频率，通过投票选举最可靠的频率。
         
         参数:
         - heartbeat_freq_range: 心跳频率范围（Hz），默认0.75-3.0 Hz (45-180 bpm)
         - vote_threshold: 投票阈值（bpm），频率在此范围内视为同一票
+        - verbose: 是否打印详细信息和绘制图表（默认 True）
         
         返回:
         - voting_rate: 投票得出的心跳率（次/分钟）
@@ -332,21 +335,22 @@ class HeartbeatAnalyzer(object):
         else:
             voting_rate = np.median(all_rates)
         
-        print(f"心跳率提取统计:")
-        print(f"  子载波数: {len(all_rates)}")
-        print(f"  所有子载波心跳率范围: {np.min(all_rates):.1f} - {np.max(all_rates):.1f} bpm")
-        print(f"  投票结果: {voting_rate:.1f} bpm (投票数: {max(vote_counts.keys())})")
-        print(f"  中位数: {np.median(all_rates):.1f} bpm")
-        print(f"  平均值: {np.mean(all_rates):.1f} bpm")
-        
-        # 绘制分布图
-        plt.figure(figsize=(8, 6))
-        plt.hist(all_rates, bins=20, alpha=0.7, color='red', edgecolor='black')
-        plt.xlabel('Heartbeat Rate (bpm)')
-        plt.ylabel('Frequency')
-        plt.title('Distribution of Heartbeat Rates Across Subcarriers')
-        plt.grid(True)
-        plt.savefig('heartbeat_distribution.png', dpi=300)
-        plt.show()
+        if verbose:
+            print(f"心跳率提取统计:")
+            print(f"  子载波数: {len(all_rates)}")
+            print(f"  所有子载波心跳率范围: {np.min(all_rates):.1f} - {np.max(all_rates):.1f} bpm")
+            print(f"  投票结果: {voting_rate:.1f} bpm (投票数: {max(vote_counts.keys())})")
+            print(f"  中位数: {np.median(all_rates):.1f} bpm")
+            print(f"  平均值: {np.mean(all_rates):.1f} bpm")
+            
+            # 绘制分布图
+            plt.figure(figsize=(8, 6))
+            plt.hist(all_rates, bins=20, alpha=0.7, color='red', edgecolor='black')
+            plt.xlabel('Heartbeat Rate (bpm)')
+            plt.ylabel('Frequency')
+            plt.title('Distribution of Heartbeat Rates Across Subcarriers')
+            plt.grid(True)
+            plt.savefig('heartbeat_distribution.png', dpi=300)
+            plt.show()
         
         return voting_rate, vote_counts, all_rates

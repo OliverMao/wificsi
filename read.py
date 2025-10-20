@@ -30,8 +30,9 @@ import numpy as np
 import sys
 import scipy.signal  # 添加导入用于FFT和峰值检测
 
-import matplotlib.pyplot as plt
 import matplotlib
+matplotlib.use('Agg')  # 设置非GUI后端，避免线程问题
+import matplotlib.pyplot as plt
 
 from nexcsi import nulls, pilots
 from matplotlib import colors
@@ -300,7 +301,8 @@ class ReadCSI(object):
             csi_amp_denoised[:, s] = dwt_denoise(csi_amp_filtered[:, s])
         # if save_image:
             # 使用去噪后的幅度（数据已预裁剪）
-        self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet',save_path=save_path)
+        if save_image and save_path is not None:
+            self.plot_csi_overview(csi_amp_denoised, subcarrier=15, cmap='jet',save_path=save_path)
         
         self.csi = csi_amp_denoised
         return self.csi
@@ -360,8 +362,10 @@ class ReadCSI(object):
 
         plt.tight_layout()
         # 保存
-        plt.savefig(save_path, dpi=300)
-        plt.show()
+        if save_path:
+            plt.savefig(save_path, dpi=300)
+            print(f"热图已保存到: {save_path}")
+        plt.close()  # 关闭图形以释放内存
 
     def get_breathing_analyzer(self):
         """
